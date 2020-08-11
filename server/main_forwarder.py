@@ -1,6 +1,6 @@
 import boto3
 import json
-import os
+from config import *
 
 """
 Extra IAM Policy
@@ -21,9 +21,7 @@ Extra IAM Policy
 }
 """
 
-AWS_ACCOUNT_ID = ''
-AWS_REGION = os.environ['AWS_REGION']
-WEB_HOOK_FUNCTION_NAME = ''
+
 client = boto3.client('lambda')
 
 

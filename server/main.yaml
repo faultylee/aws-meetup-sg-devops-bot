@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+
+
+Parameters:
+
+  ApiGatewayRoot:
+    Description: The API Gateway root URL for the websocket connection
+    Type: String
+
+  DynamoDBTableName:
+    Description: DynamoDB Table Name to store websocket connections
+    Type: String
+    Default: devops-bot-client
+
+
+##################################################################
+### Globals for Function
+##################################################################
+
+Globals:
+
+  Function:
+    MemorySize: 512
+    Timeout: 60
+    Runtime: python3.8
+    Environment:
+      Variables:
+        DDB_TABLE_NAME: !Ref DynamoDBTableName
+        WEB_HOOK_FUNCTION_NAME: !Sub ${AWS::StackName}-webhook
+        API_GATEWAY_ROOT: !Ref ApiGatewayRoot
+        AWS_ACCOUNT_ID: !Ref AWS::AccountId
+
+# ----------------------------------------------
+# Resources: Lambda Layers
+# ----------------------------------------------
+
+Resources:
+
+  LayerVersionDevOpsBot:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub ${AWS::StackName}
+      Description: Dependencies for DevOps Bot Server
+      ContentUri:
+        ../lambda-layers/core
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+# ----------------------------------------------
+# Resources: Functions
+# ----------------------------------------------
+
+  FunctionWebsocket:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-websocket
+      CodeUri: ./
+      Handler: main_websocket.lambda_handler
+      Role: !GetAtt RoleFunction.Arn
+      Layers:
+        - !Ref LayerVersionDevOpsBot
+      Timeout: 60
+
+  FunctionWebhook:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-webhook
+      CodeUri: ./
+      Handler: main_webhook.lambda_handler
+      Role: !GetAtt RoleFunction.Arn
+      Layers:
+        - !Ref LayerVersionDevOpsBot
+      Timeout: 60
+      Events:
+        SNSSubscription:
+          Type: SNS
+          Properties:
+            Topic: !Ref SnsTopic
+
+  RoleFunction:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-role-lambda
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WebSocketPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:GetItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                  - execute-api:*
+                  - apigateway:PUT
+                  - apigateway:POST
+                  - apigateway:GET
+                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+# ----------------------------------------------
+# Resources: DynamoDB
+# ----------------------------------------------
+
+  DynamoDBTableWebsocket:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: client-id
+          AttributeType: 'S'
+        - AttributeName: timestamp
+          AttributeType: 'N'
+      KeySchema:
+        - AttributeName: client-id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      TableName: !Ref DynamoDBTableName
+      TimeToLiveSpecification:
+        AttributeName: timestamp
+        Enabled: True
+
+# ----------------------------------------------
+# Resources: SNS
+# ----------------------------------------------
+
+  SnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${AWS::StackName}-sns-topic
+      TopicName: !Sub ${AWS::StackName}-sns-topic

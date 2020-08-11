@@ -3,9 +3,7 @@ import os
 import requests
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 import boto3
-
-API_GATEWAY_ROOT = 'API_GATEWAY_ID.execute-api.ap-southeast-1.amazonaws.com'
-DDB_TABLE_NAME = 'devops-bot-client'
+from config import *
 
 session = boto3.session.Session()
 
@@ -35,9 +33,10 @@ def lambda_handler(event, context):
         print('POST: ',
               f'https://{API_GATEWAY_ROOT}/default/@connections/{client_id}',
               data)
-        requests.post(
+        result = requests.post(
             f'https://{API_GATEWAY_ROOT}/default/@connections/{client_id}',
             auth=auth, data=data)
+        print(result)
     return {
         "statusCode": 200,
     }

@@ -1,8 +1,7 @@
 import json
 import boto3
 import time
-
-DDB_TABLE_NAME = 'devops-bot-client'
+from config import *
 
 session = boto3.session.Session()
 
