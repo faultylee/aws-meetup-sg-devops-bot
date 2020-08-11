@@ -47,7 +47,7 @@ sound_mappings_sns = {
 
 def play(sound):
     print('\t\tplaying: ', sound)
-    if not IS_RPI:
+    if IS_RPI:
         pygame.mixer.music.set_volume(1.0)
         pygame.mixer.music.load(sound_root + sound)
         # amp_mute.off()

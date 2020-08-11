@@ -9,6 +9,7 @@ verify_ssl = true
 asyncio = "*"
 websockets = "*"
 rich = "*"
+pygame = "*"
 
 [requires]
 python_version = "3.7"
