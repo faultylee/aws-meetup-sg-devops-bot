@@ -22,12 +22,12 @@ Extra IAM Policy
 """
 
 
-client = boto3.client('lambda')
+client = boto3.client("lambda")
 
 
 def lambda_handler(event, context):
     client.invoke(
-        FunctionName=f'arn:aws:lambda:{AWS_REGION}:{AWS_ACCOUNT_ID}:function:{WEB_HOOK_FUNCTION_NAME}',
-        InvocationType='Event',
-        Payload=json.dumps(event)
+        FunctionName=f"arn:aws:lambda:{AWS_REGION}:{AWS_ACCOUNT_ID}:function:{WEB_HOOK_FUNCTION_NAME}",
+        InvocationType="Event",
+        Payload=json.dumps(event),
     )
