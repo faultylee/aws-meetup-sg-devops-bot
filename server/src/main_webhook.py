@@ -24,17 +24,17 @@ def lambda_handler(event, context):
                                'AWS_SECRET_ACCESS_KEY'],
                            aws_token=os.environ['AWS_SESSION_TOKEN'],
                            aws_host=API_GATEWAY_ROOT,
-                           aws_region='ap-southeast-1',
+                           aws_region=AWS_REGION,
                            aws_service='execute-api')
     dynamodb = session.client('dynamodb')
     for item in dynamodb.scan(TableName=DDB_TABLE_NAME).get('Items'):
         client_id = item.get('client-id').get('S')
         data = json.dumps(event)
         print('POST: ',
-              f'https://{API_GATEWAY_ROOT}/default/@connections/{client_id}',
+              f'https://{API_GATEWAY_ROOT}/{API_GATEWAY_STAGE}/@connections/{client_id}',
               data)
         result = requests.post(
-            f'https://{API_GATEWAY_ROOT}/default/@connections/{client_id}',
+            f'https://{API_GATEWAY_ROOT}/{API_GATEWAY_STAGE}/@connections/{client_id}',
             auth=auth, data=data)
         print(result)
     return {

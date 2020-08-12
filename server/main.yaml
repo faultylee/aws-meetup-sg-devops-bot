@@ -2,18 +2,6 @@ AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
 
 
-Parameters:
-
-  ApiGatewayRoot:
-    Description: The API Gateway root URL for the websocket connection
-    Type: String
-
-  DynamoDBTableName:
-    Description: DynamoDB Table Name to store websocket connections
-    Type: String
-    Default: devops-bot-client
-
-
 ##################################################################
 ### Globals for Function
 ##################################################################
@@ -26,9 +14,10 @@ Globals:
     Runtime: python3.8
     Environment:
       Variables:
-        DDB_TABLE_NAME: !Ref DynamoDBTableName
+        DDB_TABLE_NAME: !Sub ${AWS::StackName}-client-table
         WEB_HOOK_FUNCTION_NAME: !Sub ${AWS::StackName}-webhook
-        API_GATEWAY_ROOT: !Ref ApiGatewayRoot
+        API_GATEWAY_ROOT: !Join [ '', [ !Ref WebSocketDevOpsBotDemo, '.execute-api.',!Ref 'AWS::Region','.amazonaws.com'] ]
+        API_GATEWAY_STAGE: !Ref 'Stage'
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
 
 # ----------------------------------------------
@@ -43,7 +32,7 @@ Resources:
       LayerName: !Sub ${AWS::StackName}
       Description: Dependencies for DevOps Bot Server
       ContentUri:
-        ../lambda-layers/core
+        ./lambda-layers/core
       CompatibleRuntimes:
         - python3.8
       RetentionPolicy: Delete
@@ -56,7 +45,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-websocket
-      CodeUri: ./
+      CodeUri: ./src
       Handler: main_websocket.lambda_handler
       Role: !GetAtt RoleFunction.Arn
       Layers:
@@ -67,7 +56,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-webhook
-      CodeUri: ./
+      CodeUri: ./src
       Handler: main_webhook.lambda_handler
       Role: !GetAtt RoleFunction.Arn
       Layers:
@@ -122,15 +111,11 @@ Resources:
       AttributeDefinitions:
         - AttributeName: client-id
           AttributeType: 'S'
-        - AttributeName: timestamp
-          AttributeType: 'N'
       KeySchema:
         - AttributeName: client-id
           KeyType: HASH
-        - AttributeName: timestamp
-          KeyType: RANGE
       BillingMode: PAY_PER_REQUEST
-      TableName: !Ref DynamoDBTableName
+      TableName: !Sub ${AWS::StackName}-client-table
       TimeToLiveSpecification:
         AttributeName: timestamp
         Enabled: True
@@ -144,3 +129,106 @@ Resources:
     Properties:
       DisplayName: !Sub ${AWS::StackName}-sns-topic
       TopicName: !Sub ${AWS::StackName}-sns-topic
+
+# ----------------------------------------------
+# Resources: API Gateway
+# ----------------------------------------------
+
+  WebSocketDevOpsBotDemo:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-websocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.message"
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketDevOpsBotDemo
+      RouteKey: $connect
+      AuthorizationType: NONE
+      OperationName: ConnectRoute
+      Target: !Join
+        - '/'
+        - - 'integrations'
+          - !Ref ConnectInteg
+
+  ConnectInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketDevOpsBotDemo
+      Description: Connect Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub:
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-websocket/invocations
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketDevOpsBotDemo
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      OperationName: DisconnectRoute
+      Target: !Join
+        - '/'
+        - - 'integrations'
+          - !Ref DisconnectInteg
+
+  DisconnectInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketDevOpsBotDemo
+      Description: Disconnect Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub:
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-websocket/invocations
+
+  DefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketDevOpsBotDemo
+      RouteKey: $default
+      AuthorizationType: NONE
+      OperationName: DefaultRoute
+      Target: !Join
+        - '/'
+        - - 'integrations'
+          - !Ref DefaultInteg
+
+  DefaultInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketDevOpsBotDemo
+      Description: Default Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub:
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-websocket/invocations
+
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+    - ConnectRoute
+    - DefaultRoute
+    - DisconnectRoute
+    Properties:
+      ApiId: !Ref WebSocketDevOpsBotDemo
+
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: default
+      Description: Default Stage
+      DeploymentId: !Ref Deployment
+      ApiId: !Ref WebSocketDevOpsBotDemo
+
+  PermissionWebsocket:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - WebSocketDevOpsBotDemo
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref FunctionWebsocket
+      Principal: apigateway.amazonaws.com

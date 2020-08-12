@@ -1,7 +1,8 @@
 import os
 
-AWS_ACCOUNT_ID = os.environ['AWS_ACCOUNT_ID'] #'217326342350'
+AWS_ACCOUNT_ID = os.environ['AWS_ACCOUNT_ID']
 AWS_REGION = os.environ['AWS_REGION']
-API_GATEWAY_ROOT = os.environ['API_GATEWAY_ROOT'] #'2vbpbhhtke.execute-api.ap-southeast-1.amazonaws.com'
-DDB_TABLE_NAME = os.environ['DDB_TABLE_NAME']#'devops-bot-client'
+API_GATEWAY_ROOT = os.environ['API_GATEWAY_ROOT']
+API_GATEWAY_STAGE = os.environ['API_GATEWAY_STAGE']
+DDB_TABLE_NAME = os.environ['DDB_TABLE_NAME']
 WEB_HOOK_FUNCTION_NAME = os.environ['WEB_HOOK_FUNCTION_NAME']
